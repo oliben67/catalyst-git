@@ -1,5 +1,14 @@
 # Working Contract: catalyst-git
 
+## Metadata
+
+- Name: catalyst-git
+- Description: Repository integration plugin for Git-based workflows, including continuous local repository auditing.
+- UUID: bf6ada01-9b50-490b-ad90-a89420ab35e5
+- Version: 0.3.0
+- Active: true
+- Type: repository
+
 ## Purpose
 
 Provides repository integration for Git-related operations within the catalyst framework.
@@ -13,8 +22,11 @@ Provides repository integration for Git-related operations within the catalyst f
 
 ## Responsibilities
 
-- Maintain a long-running sub-agent that continuously monitors the local Git
-  repository for changes.
+- Maintain a long-running sub-agent that continuously monitors the deployed
+  project's own Git repository for changes — the project this plugin is
+  activated within, resolved at activation time. Never the catalyst
+  framework's own source repository, and never this plugin's own
+  installation directory under `plugins/<type>/catalyst-git/`.
 - Detect repository changes by inspecting `git status --porcelain` and by
   tracking content fingerprints with `git hash-object` for relevant files.
 - For each detected change, spawn a short-lived audit sub-agent that invokes
@@ -29,14 +41,18 @@ Provides repository integration for Git-related operations within the catalyst f
 
 ## Operational loop
 
-1. Start a persistent monitoring sub-agent for the local repository.
-2. Poll the repository state using `git status --porcelain` and compare it
-   against the previous snapshot.
+1. Start a persistent monitoring sub-agent for the deployed project's own
+   repository root — the root of the project this plugin was activated
+   within. Never the catalyst framework's own repository, and never this
+   plugin's own installation directory.
+2. Poll that repository's state using `git status --porcelain` and compare
+   it against the previous snapshot.
 3. For each new or modified file, compute a content hash using `git hash-object`
    and store the value as part of the change fingerprint.
 4. Spawn a focused audit sub-agent for each detected change set and invoke
    `/run-analysis` for that change set.
-5. Write the audit result to `audits/` at the repository root.
+5. Write the audit result to `audits/` at that same deployed project's
+   repository root.
 6. If the audit outcome indicates a major break, post the alert in any available
    agent window.
 
