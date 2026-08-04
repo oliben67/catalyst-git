@@ -1,2 +1,3 @@
 # catalyst-git
-Git plugin for catalyst framework
+
+Repository plugin for Git-based workflows.
