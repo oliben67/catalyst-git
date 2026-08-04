@@ -7,44 +7,16 @@ Repository plugin for Git-based workflows.
 The plugin's continuous-auditing responsibility (see `working-contract.md`)
 is implemented as an event-driven pipeline, not a manual polling loop:
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ service.py                                                        │
-│   loop every N seconds:                                           │
-│     git status --porcelain  →  git hash-object per file            │
-│     write FULL snapshot  →  <output_file> (JSON)                  │
-│     diff vs previous cycle's snapshot (in-memory)                 │
-│     if anything differs → print ONE json line to stdout:          │
-│        {"entered": {...}, "updated": {...}, "cleared": [...]}     │
-│     (silent when nothing changed)                                 │
-└───────────────────────────┬───────────────────────────────────────┘
-                            │ stdout line = one event
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ Host monitor (e.g. Claude Code's Monitor tool, run persistently)   │
-│   runs service.py directly as its command                          │
-│   delivers each stdout line as a discrete notification             │
-│   the operator never polls — events arrive on their own schedule   │
-└───────────────────────────┬───────────────────────────────────────┘
-                            │ notification: diff JSON
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ Orchestrating agent                                                │
-│   is this diff self-caused (its own edit/commit moments ago)?      │
-│     yes → skip, no audit needed                                    │
-│     no  → spawn a short-lived audit sub-agent                      │
-└───────────────────────────┬───────────────────────────────────────┘
-                            │ self-contained prompt: raw diff +
-                            │ "read working-contract.md for your mandate"
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ Audit sub-agent (fresh context, no memory of prior conversation)   │
-│   reads this plugin's working-contract.md for its mandate          │
-│   investigates the actual paths: git log/diff, catalog pins,       │
-│   plugin structure checks, etc. — determines real impact           │
-│   writes one report → audits/<UTC-timestamp>-<slug>.md             │
-│   returns a short summary to the orchestrating agent when done     │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    A["<b>service.py</b><br/>loop every N seconds:<br/>git status --porcelain → git hash-object per file<br/>write full snapshot to output_file (JSON)<br/>diff vs previous cycle's snapshot in memory<br/>if anything differs: print one JSON line to stdout<br/>{entered, updated, cleared}<br/>(silent when nothing changed)"]
+    A -->|"stdout line = one event"| B["<b>Host monitor</b><br/>e.g. Claude Code's Monitor tool, run persistently<br/>runs service.py directly as its command<br/>delivers each stdout line as a discrete notification<br/>the operator never polls"]
+    B -->|"notification: diff JSON"| C{"<b>Orchestrating agent</b><br/>is this diff self-caused?<br/>(its own edit/commit moments ago)"}
+    C -->|"yes"| D["Skip — no audit needed"]
+    C -->|"no"| E["Spawn a short-lived audit sub-agent"]
+    E -->|"self-contained prompt:<br/>raw diff + 'read working-contract.md<br/>for your mandate'"| F["<b>Audit sub-agent</b><br/>fresh context, no memory of prior conversation<br/>reads this plugin's working-contract.md for its mandate<br/>investigates the actual paths: git log/diff,<br/>catalog pins, plugin structure checks, etc."]
+    F -->|"writes report"| G["audits/{utc-timestamp}-{slug}.md"]
+    F -->|"returns short summary"| C
 ```
 
 Two file categories matter here:
