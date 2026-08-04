@@ -5,7 +5,7 @@
 - Name: catalyst-git
 - Description: Repository integration plugin for Git-based workflows, including continuous local repository auditing.
 - UUID: bf6ada01-9b50-490b-ad90-a89420ab35e5
-- Version: 0.2.0
+- Version: 0.3.0
 - Active: true
 - Type: repository
 
