@@ -5,7 +5,14 @@ Repository plugin for Git-based workflows.
 ## Continuous auditing architecture
 
 The plugin's continuous-auditing responsibility (see `working-contract.md`)
-is implemented as an event-driven pipeline, not a manual polling loop:
+is implemented as an event-driven pipeline, not a manual polling loop.
+
+**`service.py`'s `repo_path` argument must always be the deployed project's
+own root directory** — the project this plugin was activated within,
+resolved at activation time. Never point it at the catalyst framework's own
+repository and never at this plugin's own installation directory under
+`plugins/<type>/catalyst-git/`; either mistake monitors the wrong project
+entirely and produces audits with no relevance to the deployment.
 
 ```mermaid
 flowchart TD
