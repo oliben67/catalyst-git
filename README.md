@@ -26,6 +26,16 @@ flowchart TD
     F -->|"returns short summary"| C
 ```
 
+**What decides whether a change is recorded is the kernel, not this
+plugin.** When HEAD moves, `service.py` runs the project's vendored
+`catalyst unrecorded --json` and puts its result in the event's
+`unrecorded` field: the commits whose product changes the journal does not
+record, made by hand, straight into git. Only those are worth an audit
+sub-agent, and the audit only proposes what `/adopt` should do (accept at a
+tier, or reject); it never adopts or reverts. Without the plugin the same
+detection still runs in `catalyst check`, the commit-msg hook and CI — the
+plugin just notices sooner.
+
 Two file categories matter here:
 
 - **Ephemeral**: the snapshot file `service.py` writes every cycle is just
