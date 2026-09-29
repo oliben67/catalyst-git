@@ -21,6 +21,12 @@ status` (its pending change was committed or reverted). Cycles with no
 difference print nothing, so a consumer can treat each stdout line as one
 discrete change event.
 
+When HEAD moves (a new commit, by anyone, by any means), the event also
+carries "head": "<sha>" and, in a catalyst deployment, "unrecorded": the
+kernel's own detection of commits whose product changes the journal does
+not record (`catalyst unrecorded --json`, run with the project's vendored
+CLI) — this plugin only triggers it and never judges a change itself.
+
 The loop exits once stop_file's contents contain the word "stop"
 (case-insensitive). stop_file defaults to "stop.signal" in the current
 directory.
@@ -72,6 +78,26 @@ def snapshot(repo_path):
     return entries
 
 
+def head(repo_path):
+    result = subprocess.run(["git", "rev-parse", "-q", "--verify", "HEAD"], cwd=repo_path,
+                            capture_output=True, text=True)
+    return result.stdout.strip() or None
+
+
+def unrecorded(repo_path):
+    """The kernel's list of commits with changes outside catalyst, or None
+    when the project has no vendored catalyst CLI (or it fails)."""
+    cli = Path(repo_path) / ".criterion" / "bin" / "catalyst.pyz"
+    if not cli.is_file():
+        return None
+    result = subprocess.run([sys.executable, str(cli), "unrecorded", "--json"], cwd=repo_path,
+                            capture_output=True, text=True)
+    try:
+        return json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return None
+
+
 def should_stop(stop_file):
     try:
         return "stop" in Path(stop_file).read_text().lower()
@@ -107,17 +133,22 @@ def main():
     args = parser.parse_args()
 
     previous = {}
+    previous_head = head(args.repo_path)
     while True:
         entries = snapshot(args.repo_path)
         Path(args.output_file).write_text(json.dumps(entries, indent=2))
 
         entered, updated, cleared = diff_snapshots(previous, entries)
-        if entered or updated or cleared:
-            print(
-                json.dumps({"entered": entered, "updated": updated, "cleared": cleared}),
-                flush=True,
-            )
-        previous = entries
+        current_head = head(args.repo_path)
+        event = {"entered": entered, "updated": updated, "cleared": cleared}
+        if current_head != previous_head:
+            event["head"] = current_head
+            found = unrecorded(args.repo_path)
+            if found is not None:
+                event["unrecorded"] = found
+        if entered or updated or cleared or "head" in event:
+            print(json.dumps(event), flush=True)
+        previous, previous_head = entries, current_head
 
         if should_stop(args.stop_file):
             print("Stop signal received, exiting.")

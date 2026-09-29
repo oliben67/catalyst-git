@@ -5,7 +5,7 @@
 - Name: catalyst-git
 - Description: Repository integration plugin for Git-based workflows, including continuous local repository auditing.
 - UUID: bf6ada01-9b50-490b-ad90-a89420ab35e5
-- Version: 0.3.0
+- Version: 0.4.0
 - Active: true
 - Type: repository
 
@@ -29,10 +29,11 @@ Provides repository integration for Git-related operations within the catalyst f
   installation directory under `plugins/<type>/catalyst-git/`.
 - Detect repository changes by inspecting `git status --porcelain` and by
   tracking content fingerprints with `git hash-object` for relevant files.
-- For each detected change, spawn a short-lived audit sub-agent that invokes
-  the framework's `/run-analysis` command to evaluate whether the change
-  violates any rule, requirement, or framework constraint defined by the
-  active catalyst framework.
+- For each commit the kernel reports as an unrecorded change (`catalyst
+  unrecorded`), spawn a short-lived audit sub-agent that proposes how
+  `/adopt` should resolve it. The plugin never decides whether a change
+  is recorded: that is the kernel's detection, which also runs without it
+  (`catalyst check`, the commit-msg hook, CI).
 - Record audit results in a root-level `audits/` folder, with one report per
   change or change set.
 - When the audit identifies a severe or high-impact break, surface the finding
@@ -48,13 +49,21 @@ Provides repository integration for Git-related operations within the catalyst f
 2. Poll that repository's state using `git status --porcelain` and compare
    it against the previous snapshot.
 3. For each new or modified file, compute a content hash using `git hash-object`
-   and store the value as part of the change fingerprint.
-4. Spawn a focused audit sub-agent for each detected change set and invoke
-   `/run-analysis` for that change set.
+   and store the value as part of the change fingerprint. When HEAD moves,
+   run the kernel's own detection, `catalyst unrecorded --json` (the
+   project's vendored CLI), and carry its result in the event: the commits
+   whose product changes the journal does not record.
+4. For an event whose `unrecorded` list is non-empty (a change made outside
+   catalyst), spawn a focused audit sub-agent for those commits: it reads
+   them and proposes, for each, what `/adopt` should do — accept at which
+   tier, or reject — without adopting or reverting anything itself. Events
+   with no unrecorded commit need no audit: the kernel's checks
+   (`catalyst check`, the commit-msg hook, `catalyst trace` in CI) already
+   cover them.
 5. Write the audit result to `audits/` at that same deployed project's
    repository root.
 6. If the audit outcome indicates a major break, post the alert in any available
-   agent window.
+   agent window, pointing to `/adopt`.
 
 ## Constraints
 
